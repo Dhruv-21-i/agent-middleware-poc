@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="cmty-agent-widget.min.css">
+</head>
+<body>
+
+  <script>
+    console.log('CMty iframe booted');
+
+    let agentInstance;
+    let agentReady = false;
+
+    function initAgent() {
+      if (agentReady) return;
+
+      agentInstance = new window.CmtyAgent({
+        apiUrl: 'https://poc.community-workday.com/api',
+        assistantId: 'community-agent'
+      });
+
+      window.openCmtyAgent = () => agentInstance.handleOpen();
+      agentReady = true;
+
+      console.log('Agent initialized');
+    }
+
+    function openAgentSafely() {
+      if (typeof window.openCmtyAgent === 'function') {
+        window.openCmtyAgent();
+      } else {
+        setTimeout(openAgentSafely, 300);
+      }
+    }
+
+    function waitForAgentLib() {
+      if (window.CmtyAgent) {
+        initAgent();
+      } else {
+        setTimeout(waitForAgentLib, 100);
+      }
+    }
+
+    waitForAgentLib();
+
+    window.addEventListener("message", (event) => {
+      console.log('📩 Message received in iframe:', event.data);
+
+      const data = event.data;
+
+      if (data?.type === "OPEN_CHAT") {
+        console.log('🚀 OPEN_CHAT received');
+        openAgentSafely();
+        return;
+      }
+
+      if (data?.action === "INIT_AUTH_CHAT") {
+        console.log('🔐 Auth handshake received');
+        console.log('Token:', data.token);
+        console.log('User:', data.userId);
+        console.log('Org:', data.orgId);
+
+        openAgentSafely();
+      }
+    });
+  </script>
+
+  <script src="react.production.min.js"></script>
+  <script src="react-dom.production.min.js"></script>
+  <script src="cmty-agent-widget.min.js"></script>
+
+</body>
+</html>
