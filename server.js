@@ -1,112 +1,120 @@
-// --------------------------------------------------
-// Required Imports
-// --------------------------------------------------
+// ------------------------------
+// Imports
+// ------------------------------
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 
-// --------------------------------------------------
-// Middleware Setup
-// --------------------------------------------------
+// ------------------------------
+// Basic Middleware
+// ------------------------------
 app.use(express.json());
 app.use(cookieParser());
 
-// IMPORTANT: Replace with your actual Salesforce domain in production
 app.use(cors({
-    origin: true, // For POC allow all. Lock to Salesforce domain later.
-    credentials: true
+  origin: true, // tighten later to Salesforce domain
+  credentials: true
 }));
 
-// Serve static files from /public folder
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --------------------------------------------------
-// Temporary In-Memory Ticket Store (POC Only)
-// In production use Redis / DB
-// --------------------------------------------------
+// ------------------------------
+// Ticket Store (POC only)
+// ------------------------------
 const validTickets = new Set();
 
-// --------------------------------------------------
-// 1️⃣ Pre-Auth Endpoint (Called by Apex)
-// --------------------------------------------------
+// ------------------------------
+// Proxy LangGraph API
+// ------------------------------
+app.use(
+  '/api/langgraph',
+  createProxyMiddleware({
+    target: 'https://poc.community-workday.com',
+    changeOrigin: true,
+    pathRewrite: {
+      '^/api/langgraph': '/api'
+    },
+    onProxyReq: (proxyReq, req, res) => {
+      console.log('Proxying request to LangGraph API:', req.url);
+    }
+  })
+);
+
+// ------------------------------
+// Pre-auth endpoint
+// ------------------------------
 app.post('/api/auth/pre-auth', (req, res) => {
 
-    const { salesforceUserId } = req.body;
+  const { salesforceUserId } = req.body;
 
-    if (!salesforceUserId) {
-        return res.status(400).json({ error: 'Missing Salesforce User ID' });
-    }
+  if (!salesforceUserId) {
+    return res.status(400).json({ error: 'Missing Salesforce user ID' });
+  }
 
-    // Generate single-use ticket
-    const ticket = 'TICKET-' + Math.random().toString(36).substring(2, 10);
+  const ticket = 'TICKET-' + Math.random().toString(36).substring(2, 10);
 
-    validTickets.add(ticket);
+  validTickets.add(ticket);
 
-    console.log('Generated Ticket:', ticket);
+  console.log('Generated ticket:', ticket);
 
-    res.json({
-        ticket: ticket
-    });
+  res.json({
+    ticket
+  });
+
 });
 
-// --------------------------------------------------
-// 2️⃣ Agent Widget Endpoint (Loaded in iframe)
-// --------------------------------------------------
+// ------------------------------
+// Widget endpoint
+// ------------------------------
 app.get('/agent-widget', (req, res) => {
 
-    const ticket = req.query.ticket;
+  const ticket = req.query.ticket;
 
-    if (!ticket || !validTickets.has(ticket)) {
-        return res.status(401).send('Invalid or expired ticket');
-    }
+  if (!ticket || !validTickets.has(ticket)) {
+    return res.status(401).send('Invalid ticket');
+  }
 
-    // Single-use ticket → remove after validation
-    validTickets.delete(ticket);
+  validTickets.delete(ticket);
 
-    console.log('Validated Ticket:', ticket);
+  const jwtToken = 'dummy-jwt-' + Date.now();
 
-    // Generate JWT (POC dummy token)
-    const jwtToken = 'dummy-jwt-' + Date.now();
+  res.cookie('agent_jwt', jwtToken, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
+  });
 
-    // IMPORTANT for cross-site iframe cookies
-    res.cookie('agent_jwt', jwtToken, {
-        httpOnly: true,
-        secure: true,       // Required for SameSite=None
-        sameSite: 'none'    // Required for iframe cross-domain
-    });
+  res.sendFile(path.join(__dirname, 'public', 'minimal-custom-button.html'));
 
-    // Send your original HTML file
-    res.sendFile(path.join(__dirname, 'public', 'minimal-custom-button.html'));
 });
 
-// --------------------------------------------------
-// 3️⃣ Refresh Endpoint
-// --------------------------------------------------
+// ------------------------------
+// Refresh session endpoint
+// ------------------------------
 app.post('/api/auth/refresh', (req, res) => {
 
-    console.log('Refreshing session...');
+  const newJwt = 'refreshed-jwt-' + Date.now();
 
-    const newJwt = 'refreshed-jwt-' + Date.now();
+  res.cookie('agent_jwt', newJwt, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
+  });
 
-    res.cookie('agent_jwt', newJwt, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'none'
-    });
+  res.json({ success: true });
 
-    res.json({
-        success: true
-    });
 });
 
-// --------------------------------------------------
-// Start Server (Render Compatible)
-// --------------------------------------------------
+// ------------------------------
+// Start Server
+// ------------------------------
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`Middleware running on port ${PORT}`);
+  console.log(`Middleware running on port ${PORT}`);
 });
