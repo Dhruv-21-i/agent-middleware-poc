@@ -68,7 +68,12 @@ app.get('/agent-widget', (req, res) => {
                     Start Agent Simulation
 
                 </button>
-
+                <script>
+                    document.getElementById('startBtn').addEventListener('click', () => {
+                        console.log('Button clicked inside iframe');
+                        window.parent.postMessage({ action: 'CHAT_OPENED' }, '*');
+                    });
+                </script>
             </div>
 
         </body>
