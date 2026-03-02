@@ -8,67 +8,59 @@ app.use(cookieParser());
 app.use(express.json());
 
 app.use(cors({
-    origin: [/lightning\.force\.com$/, /force\.com$/],
-    credentials: true
+    origin:[/force\.com$/, /salesforce\.com$/],
+    credentials:true
 }));
 
-// Temporary ticket store
 const validTickets = new Map();
 
 
-// ============================
-// PRE AUTH ENDPOINT
-// ============================
-app.post('/api/auth/pre-auth', (req, res) => {
+app.post('/api/auth/pre-auth',(req,res)=>{
 
     const ticket =
-        'TICKET-' +
-        Math.random().toString(36).substr(2, 9);
+        'TICKET-'+
+        Math.random().toString(36).substr(2,9);
 
-    validTickets.set(ticket, req.body.userName);
+    validTickets.set(ticket,req.body.userName);
 
-    console.log("Generated ticket:", ticket);
+    console.log("Generated Ticket:",ticket);
 
-    res.json({
-        ticket: ticket
-    });
+    res.json({ticket});
 
 });
 
 
-// ============================
-// WIDGET ENDPOINT
-// ============================
-app.get('/agent-widget', (req, res) => {
+app.get('/agent-widget',(req,res)=>{
 
-    const ticket = req.query.ticket;
+    const ticket=req.query.ticket;
 
-    if (!validTickets.has(ticket)) {
+    if(!validTickets.has(ticket)){
 
-        res.status(403).send("Invalid Session Ticket");
+        res.status(403).send('Invalid Ticket');
         return;
 
     }
 
-    const userName = validTickets.get(ticket);
+    const userName=validTickets.get(ticket);
 
     validTickets.delete(ticket);
 
-    // Secure cookie
     res.cookie(
-        "agent_jwt",
-        "mock-jwt-token",
+        'agent_jwt',
+        'mock-jwt-token',
         {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none"
+            httpOnly:true,
+            secure:true,
+            sameSite:'none'
         }
     );
 
-    res.send(`
+res.send(`
 <!DOCTYPE html>
 <html>
+
 <head>
+
 <meta charset="UTF-8">
 
 <title>Agent Widget</title>
@@ -109,84 +101,63 @@ cursor:pointer;
 
 <p><b>Status:</b> Authenticated via Secure Cookie</p>
 
-<p style="color:#54698d">
-Prompt Context: "User is seeking Financials support"
-</p>
-
 <hr>
 
 <button id="startBtn">
-
 Start Agent Simulation
-
 </button>
 
 </div>
-
 
 <script>
 
 console.log("CMty iframe booted");
 
-// Wait until DOM loads
-document.addEventListener("DOMContentLoaded", function(){
+document.addEventListener("DOMContentLoaded",function(){
 
-    const btn = document.getElementById("startBtn");
+const btn=document.getElementById("startBtn");
 
-    if(!btn){
-        console.error("Button not found");
-        return;
-    }
+btn.addEventListener("click",function(){
 
-    btn.addEventListener("click", function(){
+console.log("Button clicked");
 
-        console.log("Button clicked");
+window.parent.postMessage(
+{action:'CHAT_OPENED'},
+'*'
+);
 
-        // Send message to Salesforce
-        window.parent.postMessage(
-        {action:'CHAT_OPENED'},
-        '*'
-        );
-
-    });
+});
 
 });
 
 </script>
 
 </body>
+
 </html>
-    `);
+`);
 
 });
 
 
-// ============================
-// TOKEN REFRESH ENDPOINT
-// ============================
-app.post('/api/auth/refresh', (req, res) => {
+app.post('/api/auth/refresh',(req,res)=>{
 
     res.cookie(
-        "agent_jwt",
-        "refreshed-token",
+        'agent_jwt',
+        'refreshed-token',
         {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none"
+            httpOnly:true,
+            secure:true,
+            sameSite:'none'
         }
     );
 
-    res.json({
-        status: "refreshed"
-    });
+    res.json({status:'refreshed'});
 
 });
 
 
-// ============================
-// START SERVER
-// ============================
 app.listen(
-    3000,
-    () => console.log("Middleware running on port 3000")
+3000,
+()=>console.log("Middleware running on port 3000")
 );
