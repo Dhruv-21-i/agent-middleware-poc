@@ -57,56 +57,83 @@ app.get('/agent-widget',(req,res)=>{
 
 res.send(`
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
+
 <meta charset="UTF-8">
 
-<link rel="stylesheet" href="/cmty-agent-widget.min.css">
+<title>Agent Widget</title>
+
+<style>
+
+body{
+font-family:Arial;
+background:#f8f9fb;
+padding:20px;
+}
+
+.card{
+background:white;
+border:1px solid #d8dde6;
+padding:20px;
+border-radius:4px;
+}
+
+button{
+background:#0070d2;
+color:white;
+border:0;
+padding:10px 20px;
+border-radius:4px;
+cursor:pointer;
+}
+
+</style>
 
 </head>
 
 <body>
 
-<script src="/react.production.min.js"></script>
-<script src="/react-dom.production.min.js"></script>
-<script src="/cmty-agent-widget.min.js"></script>
+<div class="card">
+
+<h2>Hello ${userName}</h2>
+
+<p><b>Status:</b> Authenticated via Secure Cookie</p>
+
+<hr>
+
+<button id="startBtn">
+Start Agent Simulation
+</button>
+
+</div>
 
 <script>
 
 console.log("CMty iframe booted");
 
-const agent = new window.CmtyAgent({
-    apiUrl: 'https://poc.community-workday.com/api',
-    assistantId: 'community-agent'
+document.addEventListener("DOMContentLoaded",function(){
+
+const btn=document.getElementById("startBtn");
+
+btn.addEventListener("click",function(){
+
+console.log("Button clicked");
+
+window.parent.postMessage(
+{action:'CHAT_OPENED'},
+'*'
+);
+
 });
-
-window.openCmtyAgent = () => agent.handleOpen();
-
-function openAgentSafely(){
-
-    if(typeof window.openCmtyAgent === "function"){
-        window.openCmtyAgent();
-    }
-    else{
-        setTimeout(openAgentSafely,300);
-    }
-
-}
-
-window.addEventListener("message",(event)=>{
-
-    console.log("Message received:",event.data);
-
-    if(event.data?.action === "CHAT_OPENED"){
-        openAgentSafely();
-    }
 
 });
 
 </script>
 
 </body>
+
 </html>
 `);
 
