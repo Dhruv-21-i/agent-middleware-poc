@@ -1,146 +1,99 @@
-// ==============================
-// Imports
-// ==============================
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const path = require('path');
-const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
 
-// ==============================
-// Basic Middleware
-// ==============================
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
 
 app.use(cors({
-  origin: true,
-  credentials: true
+    origin: [/lightning\.force\.com$/],
+    credentials: true
 }));
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+const validTickets = new Map();
 
-// ==============================
-// TEMP Ticket Store (POC only)
-// ==============================
-const validTickets = new Set();
-
-// ==============================
-// Proxy LangGraph API
-// ==============================
-app.use(
-  '/api/langgraph',
-  createProxyMiddleware({
-    target: 'https://poc.community-workday.com',
-    changeOrigin: true,
-
-    pathRewrite: {
-      '^/api/langgraph': '/api'
-    },
-
-    onProxyReq: (proxyReq, req, res) => {
-
-      console.log("Proxying request to LangGraph:", req.url);
-
-      // Add API Authorization header
-      // Replace with real key if required
-      proxyReq.setHeader(
-        'Authorization',
-        'Bearer YOUR_LANGGRAPH_API_KEY'
-      );
-
-    },
-
-    onProxyRes: (proxyRes) => {
-      console.log("LangGraph response status:", proxyRes.statusCode);
-    }
-
-  })
-);
-
-// ==============================
-// Pre-auth endpoint (Apex call)
-// ==============================
 app.post('/api/auth/pre-auth', (req, res) => {
 
-  const { salesforceUserId } = req.body;
+    const ticket =
+        'TICKET-' +
+        Math.random().toString(36).substr(2, 9);
 
-  if (!salesforceUserId) {
-    return res.status(400).json({
-      error: 'Missing Salesforce User ID'
-    });
-  }
+    validTickets.set(ticket, req.body.userName);
 
-  const ticket =
-    'TICKET-' +
-    Math.random().toString(36).substring(2, 10);
-
-  validTickets.add(ticket);
-
-  console.log("Generated ticket:", ticket);
-
-  res.json({
-    ticket
-  });
+    res.json({ ticket });
 
 });
 
-// ==============================
-// Widget endpoint (iframe load)
-// ==============================
 app.get('/agent-widget', (req, res) => {
 
-  const ticket = req.query.ticket;
+    const ticket = req.query.ticket;
 
-  if (!ticket || !validTickets.has(ticket)) {
-    return res.status(401).send('Invalid ticket');
-  }
+    if (!validTickets.has(ticket)) {
 
-  // Ticket can be used once
-  validTickets.delete(ticket);
+        res.status(403).send('Invalid Session Ticket');
+        return;
 
-  const jwtToken = 'dummy-jwt-' + Date.now();
+    }
 
-  // Set secure cookie
-  res.cookie('agent_jwt', jwtToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none'
-  });
+    const userName = validTickets.get(ticket);
 
-  res.sendFile(
-    path.join(__dirname, 'public', 'minimal-custom-button.html')
-  );
+    validTickets.delete(ticket);
+
+    res.cookie(
+        'agent_jwt',
+        'mock-jwt-token',
+        {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none'
+        }
+    );
+
+    res.send(`
+        <html>
+        <body style="font-family:Arial;padding:20px;background:#f8f9fb">
+
+            <div style="background:white;border:1px solid #d8dde6;padding:20px">
+
+                <h2>Hello ${userName}</h2>
+
+                <p><b>Status:</b> Authenticated via secure cookie</p>
+
+                <button
+                    onclick="window.parent.postMessage({action:'CHAT_OPENED'}, '*')"
+                    style="background:#0070d2;color:white;border:0;padding:10px 20px;border-radius:4px">
+
+                    Start Agent Simulation
+
+                </button>
+
+            </div>
+
+        </body>
+        </html>
+    `);
 
 });
 
-// ==============================
-// Refresh session endpoint
-// ==============================
 app.post('/api/auth/refresh', (req, res) => {
 
-  const newJwt = 'refreshed-jwt-' + Date.now();
+    res.cookie(
+        'agent_jwt',
+        'refreshed-token',
+        {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'none'
+        }
+    );
 
-  res.cookie('agent_jwt', newJwt, {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none'
-  });
-
-  res.json({
-    success: true
-  });
+    res.json({ status:'refreshed' });
 
 });
 
-// ==============================
-// Start Server
-// ==============================
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`Middleware running on port ${PORT}`);
-});
+app.listen(
+    3000,
+    () => console.log('Dummy Middleware active on port 3000')
+);
