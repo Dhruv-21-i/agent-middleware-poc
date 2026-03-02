@@ -16,7 +16,7 @@
       if (agentReady) return;
 
       agentInstance = new window.CmtyAgent({
-        apiUrl: '/api/langgraph',   // ✅ changed from external API to middleware proxy
+        apiUrl: 'https://poc.community-workday.com/api/langgraph',   // ✅ changed from external API to middleware proxy
         assistantId: 'community-agent'
       });
 
