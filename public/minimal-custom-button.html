@@ -28,14 +28,17 @@
 
     function openAgentSafely() {
       if (typeof window.openCmtyAgent === 'function') {
+        console.log('openAgentSafely');
         window.openCmtyAgent();
       } else {
+        console.log('openAgentSafely failed');
         setTimeout(openAgentSafely, 300);
       }
     }
 
     function waitForAgentLib() {
       if (window.CmtyAgent) {
+        console.log('waitForAgentLib');
         initAgent();
       } else {
         setTimeout(waitForAgentLib, 100);

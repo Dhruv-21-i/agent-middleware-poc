@@ -1,6 +1,7 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 
@@ -11,6 +12,9 @@ app.use(cors({
     origin:[/force\.com$/, /salesforce\.com$/],
     credentials:true
 }));
+
+// ⭐ NEW: serve static files (widget JS/CSS)
+app.use(express.static(path.join(__dirname,'public')));
 
 const validTickets = new Map();
 
@@ -65,68 +69,72 @@ res.send(`
 
 <title>Agent Widget</title>
 
-<style>
-
-body{
-font-family:Arial;
-background:#f8f9fb;
-padding:20px;
-}
-
-.card{
-background:white;
-border:1px solid #d8dde6;
-padding:20px;
-border-radius:4px;
-}
-
-button{
-background:#0070d2;
-color:white;
-border:0;
-padding:10px 20px;
-border-radius:4px;
-cursor:pointer;
-}
-
-</style>
+<!-- ⭐ Load widget CSS -->
+<link rel="stylesheet" href="/cmty-agent-widget.min.css">
 
 </head>
 
 <body>
 
-<div class="card">
-
-<h2>Hello ${userName}</h2>
-
-<p><b>Status:</b> Authenticated via Secure Cookie</p>
-
-<hr>
-
-<button id="startBtn">
-Start Agent Simulation
-</button>
-
-</div>
+<script src="/react.production.min.js"></script>
+<script src="/react-dom.production.min.js"></script>
+<script src="/cmty-agent-widget.min.js"></script>
 
 <script>
 
 console.log("CMty iframe booted");
 
-document.addEventListener("DOMContentLoaded",function(){
+let agentInstance;
+let agentReady=false;
 
-const btn=document.getElementById("startBtn");
+function initAgent(){
 
-btn.addEventListener("click",function(){
+if(agentReady) return;
 
-console.log("Button clicked");
+agentInstance=new window.CmtyAgent({
 
-window.parent.postMessage(
-{action:'CHAT_OPENED'},
-'*'
-);
+apiUrl:'https://poc.community-workday.com/api',
+assistantId:'community-agent'
 
 });
+
+window.openCmtyAgent=()=>agentInstance.handleOpen();
+
+agentReady=true;
+
+console.log("Agent initialized");
+
+}
+
+function openAgentSafely(){
+
+if(typeof window.openCmtyAgent==="function"){
+window.openCmtyAgent();
+}else{
+setTimeout(openAgentSafely,300);
+}
+
+}
+
+function waitForAgentLib(){
+
+if(window.CmtyAgent){
+initAgent();
+}else{
+setTimeout(waitForAgentLib,100);
+}
+
+}
+
+waitForAgentLib();
+
+window.addEventListener("message",(event)=>{
+
+console.log("Message received:",event.data);
+
+if(event.data?.action==="CHAT_OPENED"){
+openAgentSafely();
+}
 
 });
 
